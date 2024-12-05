@@ -1,0 +1,132 @@
+import tkinter as tk
+from tkinter import filedialog
+from openpyxl import load_workbook
+import sqlite3
+
+# Função para carregar o arquivo Excel e listar as planilhas
+def carregar_excel(caminho_arquivo):
+    wb = load_workbook(caminho_arquivo)
+    return wb
+
+# Função para ler os dados de uma planilha
+def ler_planilha(wb, nome_planilha):
+    sheet = wb[nome_planilha]
+    dados = []
+    for row in sheet.iter_rows(min_row=2, values_only=True):  # Ignorar cabeçalho
+        dados.append(row)
+    return dados
+
+# Função para preencher uma planilha com dados
+def preencher_planilha(wb, nome_planilha, dados):
+    sheet = wb[nome_planilha]
+    for i, row in enumerate(dados, start=2):
+        for j, value in enumerate(row, start=1):
+            sheet.cell(row=i, column=j, value=value)
+    wb.save("planilha_preenchida.xlsx")  # Salvar o arquivo preenchido
+
+# Função para criar banco de dados e a tabela de cálculos
+def criar_banco():
+    conn = sqlite3.connect('calculadora.db')
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS calculos (
+        id INTEGER PRIMARY KEY,
+        nome TEXT,
+        formula TEXT
+    )''')
+    conn.commit()
+    conn.close()
+
+# Função para salvar cálculos no banco de dados
+def salvar_calculo(nome, formula):
+    conn = sqlite3.connect('calculadora.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO calculos (nome, formula) VALUES (?, ?)', (nome, formula))
+    conn.commit()
+    conn.close()
+
+# Função para buscar cálculos armazenados no banco de dados
+def buscar_calculos():
+    conn = sqlite3.connect('calculadora.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM calculos')
+    calculos = cursor.fetchall()
+    conn.close()
+    return calculos
+
+# Função para calcular o valor de uma fórmula (exemplo simples de soma)
+def calcular(valor1, valor2):
+    return valor1 + valor2  # Exemplo simples de cálculo de soma
+
+# Função para carregar o arquivo Excel usando o Tkinter
+def carregar_arquivo():
+    arquivo = filedialog.askopenfilename(filetypes=[("Arquivos Excel", "*.xlsx")])
+    if arquivo:
+        wb = carregar_excel(arquivo)
+        planilhas = wb.sheetnames
+        print(f"Planilhas disponíveis: {planilhas}")
+        return wb, planilhas
+    else:
+        return None, None
+
+# Função principal que inicializa a interface gráfica
+def main():
+    # Criar banco de dados e tabela, se não existir
+    criar_banco()
+
+    # Criar a janela principal
+    root = tk.Tk()
+    root.title("Software de Preenchimento de Planilhas")
+
+    # Função para exibir as planilhas ao carregar o arquivo Excel
+    def exibir_planilhas():
+        wb, planilhas = carregar_arquivo()
+        if wb and planilhas:
+            print(f"Planilhas disponíveis: {planilhas}")
+            planilhas_str = "\n".join(planilhas)
+            label_planilhas.config(text=f"Planilhas:\n{planilhas_str}")
+
+    # Função para exibir cálculos armazenados
+    def exibir_calculos():
+        calculos = buscar_calculos()
+        calculos_str = "\n".join([f"{calc[1]}: {calc[2]}" for calc in calculos])
+        label_calculos.config(text=f"Cálculos armazenados:\n{calculos_str}")
+
+    # Função para criar e salvar um novo cálculo
+    def criar_calculo():
+        nome = entrada_nome.get()
+        formula = entrada_formula.get()
+        salvar_calculo(nome, formula)
+        label_status.config(text="Cálculo salvo com sucesso!")
+        exibir_calculos()
+
+    # Criar widgets
+    btn_carregar = tk.Button(root, text="Carregar Arquivo Excel", command=exibir_planilhas)
+    btn_carregar.pack(pady=20)
+
+    label_planilhas = tk.Label(root, text="Planilhas:")
+    label_planilhas.pack()
+
+    label_calculos = tk.Label(root, text="Cálculos armazenados:")
+    label_calculos.pack()
+
+    label_status = tk.Label(root, text="")
+    label_status.pack()
+
+    # Campos para inserir novos cálculos
+    tk.Label(root, text="Nome do Cálculo:").pack(pady=5)
+    entrada_nome = tk.Entry(root)
+    entrada_nome.pack(pady=5)
+
+    tk.Label(root, text="Fórmula do Cálculo (exemplo: valor1 + valor2):").pack(pady=5)
+    entrada_formula = tk.Entry(root)
+    entrada_formula.pack(pady=5)
+
+    btn_criar_calculo = tk.Button(root, text="Criar e Salvar Cálculo", command=criar_calculo)
+    btn_criar_calculo.pack(pady=20)
+
+    # Exibir a janela
+    root.mainloop()
+
+# Executar o software
+if __name__ == "__main__":
+    main()
